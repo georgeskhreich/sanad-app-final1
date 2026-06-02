@@ -15,7 +15,7 @@ import {
   onSnapshot 
 } from 'firebase/firestore';
 
-// ⚠️ هام جداً: استبدل هذه القيم بالقيم الخاصة بك التي استخرجتها من لوحة تحكم Firebase ⚠️
+// ⚠️ إعدادات Firebase السحابية - ضع قيمك الحقيقية هنا للتفعيل السحابي الفوري
 const firebaseConfig = {
   apiKey: "AIzaSyCsrsXxn0ugZos5lxYcPSAr3SJYRMibXnQ",
   authDomain: "ain-ebel-sanad-2df2e.firebaseapp.com",
@@ -26,7 +26,7 @@ const firebaseConfig = {
   measurementId: "G-CSK449Y71Z"
 };
 
-// تهيئة خدمات Firebase بشكل آمن لمنع تعطل البناء
+// تهيئة خدمات Firebase بشكل آمن لمنع تعطل البناء على السيرفر
 let app;
 let auth;
 let db;
@@ -213,7 +213,12 @@ export default function App() {
   ];
 
   useEffect(() => {
-    if (!auth) return;
+    // التحقق من توافر Firebase للبدء
+    const isFirebaseConfigured = firebaseConfig.apiKey && firebaseConfig.apiKey !== "YOUR_API_KEY_HERE";
+    if (!auth || !isFirebaseConfigured) {
+      console.log("Firebase not configured. Running in Fail-Safe Local Storage Mode.");
+      return;
+    }
     signInAnonymously(auth).catch(err => console.error("Firebase Anonymous Auth failed:", err));
   }, []);
 
@@ -226,7 +231,13 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!firebaseUser || !db) return;
+    const isFirebaseConfigured = firebaseConfig.apiKey && firebaseConfig.apiKey !== "YOUR_API_KEY_HERE";
+    if (!firebaseUser || !db || !isFirebaseConfigured) {
+      // رندر البيانات التجريبية محلياً عند غياب قاعدة البيانات
+      setSurveys(SEED_SURVEYS);
+      setUsersList(SEED_USERS);
+      return;
+    }
 
     const surveysColRef = collection(db, 'artifacts', appId, 'public', 'data', 'surveys');
     const unsubscribeSurveys = onSnapshot(surveysColRef, (snapshot) => {
@@ -331,8 +342,11 @@ export default function App() {
   };
 
   const handleSeedDatabase = async () => {
-    if (!firebaseUser || !db) {
-      showToast("يرجى إعداد مفاتيح Firebase أولاً لربط قاعدة البيانات الحية.");
+    const isFirebaseConfigured = firebaseConfig.apiKey && firebaseConfig.apiKey !== "YOUR_API_KEY_HERE";
+    if (!firebaseUser || !db || !isFirebaseConfigured) {
+      showToast("جاري العمل بنظام المحاكاة للبلدية أونلاين!");
+      setSurveys(SEED_SURVEYS);
+      setUsersList(SEED_USERS);
       return;
     }
     try {
@@ -516,7 +530,8 @@ export default function App() {
     };
 
     try {
-      if (isOnline && db) {
+      const isFirebaseConfigured = firebaseConfig.apiKey && firebaseConfig.apiKey !== "YOUR_API_KEY_HERE";
+      if (isOnline && db && isFirebaseConfigured) {
         await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'surveys'), newSurveyPayload);
         showToast("تم رفع الملف السحابي لعين إبل أونلاين بنجاح!");
       } else {
@@ -539,7 +554,13 @@ export default function App() {
 
   const handleCreateNewUser = async (e) => {
     e.preventDefault();
-    if (!db) return;
+    const isFirebaseConfigured = firebaseConfig.apiKey && firebaseConfig.apiKey !== "YOUR_API_KEY_HERE";
+    if (!db || !isFirebaseConfigured) {
+      showToast("نظام المحاكاة: تم إضافة الحساب في الذاكرة المحلية المؤقتة.");
+      setUsersList([...usersList, { ...newEngineerForm, createdAt: new Date().toISOString().substring(0, 10) }]);
+      setNewEngineerForm({ name: "", username: "", password: "", role: "Field_Engineer" });
+      return;
+    }
     const { name, username, password, role } = newEngineerForm;
     if (usersList.some(u => u.username.toLowerCase() === username.trim().toLowerCase())) {
       showToast("اسم المستخدم مسجل سابقاً!");
@@ -558,10 +579,16 @@ export default function App() {
 
   const handleUpdatePassword = async (e) => {
     e.preventDefault();
-    if (!db || !editingUser) return;
+    const isFirebaseConfigured = firebaseConfig.apiKey && firebaseConfig.apiKey !== "YOUR_API_KEY_HERE";
+    if (!db || !editingUser || !isFirebaseConfigured) {
+      showToast("نظام المحاكاة: تم تحديث كلمة السر بنجاح.");
+      setUsersList(usersList.map(u => u.username === editingUser.username ? { ...u, password: editingUser.newPassword } : u));
+      setEditingUser(null);
+      return;
+    }
     try {
       await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', editingUser.id), { password: editingUser.newPassword });
-      showToast(`تم تغيير كلمة المرور للمستخدم (${editingUser.name}) بنجاح!`); // Backticks fixed!
+      showToast(`تم تغيير كلمة المرور للمستخدم (${editingUser.name}) بنجاح!`);
       setEditingUser(null);
     } catch (err) {
       showToast("خطأ سحابي في التعديل.");
@@ -569,7 +596,12 @@ export default function App() {
   };
 
   const handleDeleteUser = async (id) => {
-    if (!db) return;
+    const isFirebaseConfigured = firebaseConfig.apiKey && firebaseConfig.apiKey !== "YOUR_API_KEY_HERE";
+    if (!db || !isFirebaseConfigured) {
+      setUsersList(usersList.filter(u => u.username !== id && u.id !== id));
+      showToast("تم إلغاء الحساب بنجاح.");
+      return;
+    }
     try {
       await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', id));
       showToast("تم حظر وحذف الموظف بنجاح.");
@@ -579,7 +611,13 @@ export default function App() {
   };
 
   const handleDeleteSurvey = async (id) => {
-    if (!db) return;
+    const isFirebaseConfigured = firebaseConfig.apiKey && firebaseConfig.apiKey !== "YOUR_API_KEY_HERE";
+    if (!db || !isFirebaseConfigured) {
+      setSurveys(surveys.filter(s => s.id !== id));
+      setSelectedSurvey(null);
+      showToast("تم حذف الاستمارة محلياً.");
+      return;
+    }
     try {
       await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'surveys', id));
       setSelectedSurvey(null);
@@ -590,20 +628,28 @@ export default function App() {
   };
 
   const handleUpdateStatus = async (id, status) => {
-    if (!db) return;
+    const isFirebaseConfigured = firebaseConfig.apiKey && firebaseConfig.apiKey !== "YOUR_API_KEY_HERE";
+    if (!db || !isFirebaseConfigured) {
+      setSurveys(surveys.map(s => s.id === id ? { ...s, status } : s));
+      if (selectedSurvey && selectedSurvey.id === id) {
+        setSelectedSurvey(prev => ({ ...prev, status }));
+      }
+      showToast(`تم تعديل قرار اللجنة إلى: ${status}`);
+      return;
+    }
     try {
       await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'surveys', id), { status });
       if (selectedSurvey && selectedSurvey.id === id) {
         setSelectedSurvey(prev => ({ ...prev, status }));
       }
-      showToast(`تم تعديل قرار اللجنة إلى: ${status}`); // Backticks fixed!
+      showToast(`تم تعديل قرار اللجنة إلى: ${status}`);
     } catch (e) {
       showToast("فشل تحديث الحالة.");
     }
   };
 
   const filteredSurveys = surveys.filter(s => {
-    const matchesSearch = s.ownerName.toLowerCase().includes(searchTerm.toLowerCase()) || s.id.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = s.ownerName.toLowerCase().includes(searchTerm.toLowerCase()) || (s.id && s.id.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesSeverity = severityFilter === "الكل" || s.severity === severityFilter;
     return matchesSearch && matchesSeverity;
   });
@@ -718,7 +764,7 @@ export default function App() {
                   <div className="bg-emerald-50 border-r-4 border-emerald-600 p-4 rounded-xl flex justify-between items-center">
                     <div>
                       <h2 className="text-sm font-bold text-emerald-950">تقييم الأضرار الميداني الحصري (خطوة {wizardStep} من 6)</h2>
-                      <p className="text-[11px] text-emerald-700">بلدية عين إبل - قضاء بنت جبيل</p>
+                      <p className="text-[11px] text-emerald-700">بلدية عين إبل - جنوب لبنان</p>
                     </div>
                   </div>
 
@@ -747,7 +793,7 @@ export default function App() {
                       </div>
                       
                       <div className="bg-slate-50 p-4 rounded-xl border space-y-3">
-                        <h4 className="text-xs font-bold text-slate-700">التوقيع الجغرافي الآلي ورابط جوجل مابس</h4>
+                        <h4 className="text-xs font-bold text-slate-700">التوقيع الجغرافي الآلي ورابط خرائط جوجل</h4>
                         <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-500">
                           <div>خط العرض: {formData.gps.lat}</div><div>خط الطول: {formData.gps.lng}</div>
                         </div>
@@ -880,7 +926,7 @@ export default function App() {
                             </div>
                           </div>
                           <select className="w-full p-2.5 bg-white border text-slate-900 rounded-xl text-xs outline-none" value={formData.bathroom_status} onChange={(e)=>setFormData({...formData, bathroom_status:e.target.value})}>
-                            <option>سليم</option><option>تضرر سطحي (سيراميك/إكسسوارات)</option><option>تدمير جزئي (أطقم صحية/مغاسل)</option><option>تدمير كلي وتفجر التمديدات الصحية</option>
+                            <option value="سليم">سليم</option><option value="تضرر سطحي (سيراميك/إكسسوارات)">تضرر سطحي (سيراميك/إكسسوارات)</option><option value="تدمير جزئي (أطقم صحية/مغاسل)">تدمير جزئي (أطقم صحية/مغاسل)</option><option value="تدمير كلي وتفجر التمديدات الصحية">تدمير كلي وتفجر التمديدات الصحية</option>
                           </select>
                         </div>
                       </div>
@@ -899,7 +945,7 @@ export default function App() {
                                 <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t text-[10px] text-slate-900">
                                   <input type="number" placeholder="المساحة م²" className="p-1.5 border text-slate-900 rounded-lg outline-none focus:border-emerald-600 bg-slate-50 font-bold" value={formData[`external_annex_${item.id}_area`]||""} onChange={(e)=>setFormData({...formData, [`external_annex_${item.id}_area`]:parseInt(e.target.value)||0})} />
                                   <select className="p-1.5 border text-slate-900 rounded-lg bg-slate-50 font-bold outline-none" value={formData[`external_annex_${item.id}_damage`]} onChange={(e)=>setFormData({...formData, [`external_annex_${item.id}_damage`]:e.target.value})}>
-                                    <option>سليم</option><option>تصدع عميق</option><option>انهيار جزئي</option><option>انهيار كلي</option>
+                                    <option value="سليم">سليم</option><option value="تصدع عميق">تصدع عميق</option><option value="انهيار جزئي">انهيار جزئي</option><option value="انهيار كلي">انهيار كلي</option>
                                   </select>
                                 </div>
                               )}
@@ -911,7 +957,7 @@ export default function App() {
                       <div>
                         <label className="text-xs font-bold block text-slate-700">الأسوار الخارجية للمنزل والحديقة</label>
                         <select className="w-full p-2.5 bg-slate-50 border text-slate-900 rounded-xl text-xs bg-white mt-1" value={formData.external_fences} onChange={(e)=>setFormData({...formData, external_fences:e.target.value})}>
-                          <option>سليمة</option><option>أضرار سطحية وشظايا</option><option>تصدع وشروخ خطيرة</option><option>انهيار جزئي</option><option>انهيار كلي</option>
+                          <option value="سليمة">سليمة</option><option value="أضرار سطحية وشظايا">أضرار سطحية وشظايا</option><option value="تصدع وشروخ خطيرة">تصدع وشروخ خطيرة</option><option value="انهيار جزئي">انهيار جزئي</option><option value="انهيار كلي">انهيار كلي</option>
                         </select>
                       </div>
                     </div>
@@ -1005,7 +1051,7 @@ export default function App() {
 
                   {/* شريط الملاحة للخطوات */}
                   <div className="bg-slate-50 p-4 border-t rounded-b-3xl flex justify-between items-center">
-                    <button type="button" disabled={wizardStep === 1} onClick={()=>setWizardStep(wizardStep-1)} className={`px-4 py-2 rounded-xl font-bold text-xs ${wizardStep === 1 ? "text-slate-300" : "bg-slate-200 text-slate-700"}`}>السابق</button>
+                    <button type="button" disabled={wizardStep === 1} onClick={()=>setWizardStep(wizardStep-1)} className={`px-4 py-2 rounded-xl font-bold text-xs ${wizardStep === 1 ? "text-slate-300 animate-none cursor-not-allowed" : "bg-slate-200 text-slate-700"}`}>السابق</button>
                     <span className="text-xs font-bold text-slate-500">خطوة {wizardStep} من 6</span>
                     {wizardStep < 6 ? (
                       <button type="button" onClick={()=>setWizardStep(wizardStep+1)} className="bg-emerald-950 text-white px-5 py-2 rounded-xl text-xs font-bold">التالي</button>
@@ -1075,7 +1121,7 @@ export default function App() {
                       {selectedSurvey ? (
                         <div className="space-y-4">
                           <div className="flex justify-between items-center bg-white p-3 rounded-xl border text-xs">
-                            <span className="font-bold text-slate-700">حالة الاعتماد: {selectedSurvey.status}</span>
+                            <span className="font-bold text-slate-700 font-sans">حالة الاعتماد: {selectedSurvey.status}</span>
                             <div className="flex space-x-1.5 space-x-reverse">
                               <button onClick={()=>handleUpdateStatus(selectedSurvey.id, "معتمد")} className="bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1 rounded text-[10px] font-bold">اعتماد</button>
                               <button onClick={()=>handleUpdateStatus(selectedSurvey.id, "مرفوض")} className="bg-red-100 text-red-700 px-2.5 py-1 rounded text-[10px] font-bold">رفض</button>
@@ -1089,7 +1135,7 @@ export default function App() {
                             <div className="flex justify-between items-center border-b-2 border-emerald-950 pb-3">
                               <div className="flex items-center gap-2">
                                 <div className="w-10 h-10 bg-emerald-100 text-emerald-950 rounded-xl flex items-center justify-center font-bold text-xs text-center leading-none">بلدية<br/>عين إبل</div>
-                                <div><h3 className="font-extrabold text-sm text-emerald-900">لجنة تقييم وحصر الأضرار</h3><p className="text-[8px] text-slate-400">عين إبل، قضاء بنت جبيل</p></div>
+                                <div><h3 className="font-extrabold text-sm text-emerald-900">لجنة تقييم وحصر الأضرار</h3><p className="text-[8px] text-slate-400">عين إبل، جنوب لبنان</p></div>
                               </div>
                               <div className="text-left"><h4 className="font-black text-slate-900 text-sm">مستند الكشف الهندسي</h4><p className="font-mono text-[8px] text-slate-400">{selectedSurvey.timestamp}</p></div>
                             </div>
@@ -1188,12 +1234,12 @@ export default function App() {
                             <div className="space-y-1">
                               <h4 className="font-bold border-r-2 border-emerald-600 pr-1 text-slate-900">5. الأجهزة الكهربائية القيمة المتضررة</h4>
                               <div className="grid grid-cols-3 gap-2 bg-slate-50 p-2 rounded text-[9px] text-center">
-                                <div>براد: <strong>{selectedSurvey.contents.appliances_fridge}</strong></div>
-                                <div>شاشة: <strong>{selectedSurvey.contents.appliances_tv}</strong></div>
-                                <div>فرن/غاز: <strong>{selectedSurvey.contents.appliances_cooker}</strong></div>
-                                <div>مدفأة: <strong>{selectedSurvey.contents.appliances_heater}</strong></div>
-                                <div>مكيف: <strong>{selectedSurvey.contents.appliances_ac}</strong></div>
-                                <div>غسالة: <strong>{selectedSurvey.contents.appliances_washing}</strong></div>
+                                <div>براد: <strong>{selectedSurvey.contents.appliances_fridge ?? 0}</strong></div>
+                                <div>شاشة: <strong>{selectedSurvey.contents.appliances_tv ?? 0}</strong></div>
+                                <div>فرن/غاز: <strong>{selectedSurvey.contents.appliances_cooker ?? 0}</strong></div>
+                                <div>مدفأة: <strong>{selectedSurvey.contents.appliances_heater ?? 0}</strong></div>
+                                <div>مكيف: <strong>{selectedSurvey.contents.appliances_ac ?? 0}</strong></div>
+                                <div>غسالة: <strong>{selectedSurvey.contents.appliances_washing ?? 0}</strong></div>
                               </div>
                             </div>
 
@@ -1236,7 +1282,7 @@ export default function App() {
                                 <span className="font-bold text-[10px]">{selectedSurvey.engineerName}</span>
                               </div>
                               <div>
-                                <span className="text-[9px] block text-slate-400 font-bold mb-2">قرار بلدية عين إبل</span>
+                                <span className="text-[9px] block text-slate-400 font-bold mb-2 font-sans">قرار بلدية عين إبل</span>
                                 {selectedSurvey.status === "معتمد" ? (
                                   <div className="border border-emerald-500 text-emerald-700 font-bold text-[10px] py-1.5 bg-emerald-50 rounded-xl max-w-[150px] mx-auto animate-pulse">✓ معتمد للتعويض</div>
                                 ) : (
@@ -1260,7 +1306,7 @@ export default function App() {
               {currentUser?.role === "Admin" && currentTab === "supervisor-users" && (
                 <div className="p-4 space-y-6 flex-1 flex flex-col text-slate-800">
                   <div className="border-b pb-3">
-                    <h2 className="text-base font-bold text-slate-900">إدارة حسابات طاقم الفحص والترميم السحابية</h2>
+                    <h2 className="text-base font-bold text-slate-900 font-sans">إدارة حسابات طاقم الفحص والترميم السحابية</h2>
                   </div>
 
                   <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 flex-1 items-start">
@@ -1269,11 +1315,11 @@ export default function App() {
                       <form onSubmit={handleCreateNewUser} className="space-y-4 text-xs">
                         <div className="space-y-1">
                           <label className="font-bold text-slate-600 block">الاسم الكامل للمهندس/المشرف</label>
-                          <input type="text" placeholder="مثال: م. طوني حداد" className="w-full p-2.5 bg-white text-slate-900 border rounded-xl outline-none focus:border-emerald-600" value={newEngineerForm.name} onChange={e=>setNewEngineerForm({...newEngineerForm, name:e.target.value})} required/>
+                          <input type="text" placeholder="مثال: م. بيار خريش" className="w-full p-2.5 bg-white text-slate-900 border rounded-xl outline-none focus:border-emerald-600" value={newEngineerForm.name} onChange={e=>setNewEngineerForm({...newEngineerForm, name:e.target.value})} required/>
                         </div>
                         <div className="space-y-1">
                           <label className="font-bold text-slate-600 block">اسم المستخدم (Username)</label>
-                          <input type="text" placeholder="مثال: tony_ebel" className="w-full p-2.5 bg-white text-slate-900 border rounded-xl text-left outline-none focus:border-emerald-600" value={newEngineerForm.username} onChange={e=>setNewEngineerForm({...newEngineerForm, username:e.target.value})} required/>
+                          <input type="text" placeholder="مثال: pierre_kh" className="w-full p-2.5 bg-white text-slate-900 border rounded-xl text-left outline-none focus:border-emerald-600" value={newEngineerForm.username} onChange={e=>setNewEngineerForm({...newEngineerForm, username:e.target.value})} required/>
                         </div>
                         <div className="space-y-1">
                           <label className="font-bold text-slate-600 block">كلمة المرور</label>
@@ -1294,15 +1340,15 @@ export default function App() {
                       <h3 className="text-xs font-bold text-slate-700">👥 قائمة طاقم العمل الحاليين ({usersList.length})</h3>
                       <div className="space-y-2 max-h-[350px] overflow-y-auto pr-1 text-xs">
                         {usersList.map(u => (
-                          <div key={u.id} className="p-3 bg-white border rounded-xl flex justify-between items-center gap-3 shadow-sm hover:border-slate-300">
+                          <div key={u.id || u.username} className="p-3 bg-white border rounded-xl flex justify-between items-center gap-3 shadow-sm hover:border-slate-300">
                             <div className="space-y-1">
                               <h4 className="font-bold text-slate-900">{u.name}</h4>
                               <div className="flex items-center gap-2 text-[10px] text-slate-400">
                                 <span>الحساب: <strong>{u.username}</strong></span>
                                 <span>•</span>
                                 <span>
-                                  السر: <strong>{showPasswords[u.id] ? u.password : "••••••"}</strong>
-                                  <button onClick={()=>togglePasswordVisibility(u.id)} className="text-emerald-750 hover:underline font-bold mr-1.5">{showPasswords[u.id] ? "إخفاء" : "عرض"}</button>
+                                  السر: <strong>{showPasswords[u.id || u.username] ? u.password : "••••••"}</strong>
+                                  <button onClick={()=>togglePasswordVisibility(u.id || u.username)} className="text-emerald-750 hover:underline font-bold mr-1.5">{showPasswords[u.id || u.username] ? "إخفاء" : "عرض"}</button>
                                 </span>
                               </div>
                             </div>
@@ -1310,7 +1356,7 @@ export default function App() {
                             <div className="flex items-center space-x-2 space-x-reverse shrink-0">
                               <span className={`text-[9px] font-black px-2 py-0.5 rounded ${u.role === "Supervisor" ? "bg-purple-100 text-purple-700" : "bg-teal-100 text-teal-700"}`}>{u.role === "Supervisor" ? "مشرف" : "مهندس"}</span>
                               <button onClick={() => setEditingUser({ id: u.id, name: u.name, username: u.username, newPassword: "" })} className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3 py-1.5 rounded-lg text-[10px] border">تغيير السر</button>
-                              <button onClick={() => handleDeleteUser(u.id)} className="bg-red-50 hover:bg-red-100 text-red-600 font-bold px-2.5 py-1.5 rounded-lg text-[10px] border border-red-200">حذف 🗑️</button>
+                              <button onClick={() => handleDeleteUser(u.id || u.username)} className="bg-red-50 hover:bg-red-100 text-red-600 font-bold px-2.5 py-1.5 rounded-lg text-[10px] border border-red-200">حذف 🗑️</button>
                             </div>
                           </div>
                         ))}
