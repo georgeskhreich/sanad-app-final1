@@ -15,7 +15,7 @@ import {
   onSnapshot 
 } from 'firebase/firestore';
 
-// ⚠️ إعدادات Firebase السحابية - ضع قيمك الحقيقية هنا للتفعيل السحابي الفوري
+//  إعدادات Firebase السحابية - ضع قيمك الحقيقية هنا للتفعيل السحابي الفوري
 const firebaseConfig = {
   apiKey: "AIzaSyCsrsXxn0ugZos5lxYcPSAr3SJYRMibXnQ",
   authDomain: "ain-ebel-sanad-2df2e.firebaseapp.com",
