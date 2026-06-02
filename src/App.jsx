@@ -22,13 +22,13 @@ import {
 // ==========================================
 // ⚠️ هام جداً: استبدل هذه القيم بالقيم الخاصة بك التي استخرجتها من لوحة تحكم Firebase ⚠️
 const firebaseConfig = {
-  apiKey: "AIzaSyCsrsXxn0ugZos5lxYcPSAr3SJYRMibXnQ",
-  authDomain: "ain-ebel-sanad-2df2e.firebaseapp.com",
-  projectId: "ain-ebel-sanad-2df2e",
-  storageBucket: "ain-ebel-sanad-2df2e.firebasestorage.app",
-  messagingSenderId: "827000709964",
-  appId: "1:827000709964:web:803f3f03bbc455cdfb65e9",
-  measurementId: "G-CSK449Y71Z"
+apiKey: "AIzaSyCsrsXxn0ugZos5lxYcPSAr3SJYRMibXnQ",
+authDomain: "ain-ebel-sanad-2df2e.firebaseapp.com",
+projectId: "ain-ebel-sanad-2df2e",
+storageBucket: "ain-ebel-sanad-2df2e.firebasestorage.app",
+messagingSenderId: "827000709964",
+appId: "1:827000709964:web:803f3f03bbc455cdfb65e9",
+measurementId: "G-CSK449Y71Z"
 };
 
 // تهيئة خدمات Firebase الأساسية بشكل آمن لمنع تعطل البناء
