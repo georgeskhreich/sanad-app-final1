@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-// استيراد مكتبات Firebase اللازمة للعمل أونلاين بالكامل
-import { initializeApp } from 'firebase/app';
+import { initializeApp, getApps } from 'firebase/app';
 import { 
   getAuth, 
   signInAnonymously, 
@@ -10,35 +9,31 @@ import {
   getFirestore, 
   collection, 
   doc, 
-  setDoc, 
   addDoc, 
   updateDoc, 
   deleteDoc,
   onSnapshot 
 } from 'firebase/firestore';
 
-// ==========================================
-// إعدادات وتكوين نظام Firebase السحابي
-// ==========================================
 // ⚠️ هام جداً: استبدل هذه القيم بالقيم الخاصة بك التي استخرجتها من لوحة تحكم Firebase ⚠️
 const firebaseConfig = {
-apiKey: "AIzaSyCsrsXxn0ugZos5lxYcPSAr3SJYRMibXnQ",
-authDomain: "ain-ebel-sanad-2df2e.firebaseapp.com",
-projectId: "ain-ebel-sanad-2df2e",
-storageBucket: "ain-ebel-sanad-2df2e.firebasestorage.app",
-messagingSenderId: "827000709964",
-appId: "1:827000709964:web:803f3f03bbc455cdfb65e9",
-measurementId: "G-CSK449Y71Z"
+  apiKey: "AIzaSyCsrsXxn0ugZos5lxYcPSAr3SJYRMibXnQ",
+  authDomain: "ain-ebel-sanad-2df2e.firebaseapp.com",
+  projectId: "ain-ebel-sanad-2df2e",
+  storageBucket: "ain-ebel-sanad-2df2e.firebasestorage.app",
+  messagingSenderId: "827000709964",
+  appId: "1:827000709964:web:803f3f03bbc455cdfb65e9",
+  measurementId: "G-CSK449Y71Z"
 };
 
-// تهيئة خدمات Firebase الأساسية بشكل آمن لمنع تعطل البناء
+// تهيئة خدمات Firebase بشكل آمن لمنع تعطل البناء
 let app;
 let auth;
 let db;
 
 try {
   if (typeof window !== 'undefined') {
-    app = initializeApp(firebaseConfig);
+    app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
     auth = getAuth(app);
     db = getFirestore(app);
   }
@@ -120,7 +115,8 @@ export default function App() {
   const [newEngineerForm, setNewEngineerForm] = useState({
     name: "",
     username: "",
-    password: ""
+    password: "",
+    role: "Field_Engineer"
   });
 
   const [editingUser, setEditingUser] = useState(null);
@@ -209,9 +205,24 @@ export default function App() {
 
   const [showPasswords, setShowPasswords] = useState({});
 
+  const ANNEX_TYPES = [
+    { id: "garage", label: "كراج سيارات خارجي مستقل", icon: "🚗" },
+    { id: "workroom", label: "غرفة عمل أو حراسة خارجية", icon: "🛠️" },
+    { id: "attic", label: "سقيفة أو مخزن علوي خارجي", icon: "📦" },
+    { id: "canopy", label: "مظلة قرميد خارجية أو برجولة", icon: "🏡" }
+  ];
+
   useEffect(() => {
     if (!auth) return;
     signInAnonymously(auth).catch(err => console.error("Firebase Anonymous Auth failed:", err));
+  }, []);
+
+  useEffect(() => {
+    if (!auth) return;
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+      setFirebaseUser(user);
+    });
+    return () => unsubscribeAuth();
   }, []);
 
   useEffect(() => {
@@ -313,6 +324,10 @@ export default function App() {
   const showToast = (msg) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(""), 4000);
+  };
+
+  const togglePasswordVisibility = (id) => {
+    setShowPasswords(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
   const handleSeedDatabase = async () => {
@@ -514,7 +529,6 @@ export default function App() {
 
     setWizardStep(1);
     setHasSignature(false);
-    // تصفير ورفع تلقائي للشاشة لأعلى للبدء فوراً بملف جديد
     setFormData(prev => ({
       ...prev,
       ownerName: "", ownerPhone: "", ownerId: "", locationUrl: "", notes: "", audioNote: null, photos: [],
@@ -547,7 +561,7 @@ export default function App() {
     if (!db || !editingUser) return;
     try {
       await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', editingUser.id), { password: editingUser.newPassword });
-      showToast("تم تحديث كلمة المرور بنجاح.");
+      showToast(`تم تغيير كلمة المرور للمستخدم (${editingUser.name}) بنجاح!`); // Backticks fixed!
       setEditingUser(null);
     } catch (err) {
       showToast("خطأ سحابي في التعديل.");
@@ -558,7 +572,7 @@ export default function App() {
     if (!db) return;
     try {
       await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', id));
-      showToast("تم تجميد وحذف الحساب بنجاح.");
+      showToast("تم حظر وحذف الموظف بنجاح.");
     } catch (e) {
       showToast("خطأ سحابي في الحذف.");
     }
@@ -569,7 +583,7 @@ export default function App() {
     try {
       await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'surveys', id));
       setSelectedSurvey(null);
-      showToast("تم حذف التقرير نهائياً من سجلات بلدية عين إبل.");
+      showToast("تم حذف الاستمارة نهائياً من قاعدة البيانات.");
     } catch (e) {
       showToast("خطأ سحابي في الحذف.");
     }
@@ -582,7 +596,7 @@ export default function App() {
       if (selectedSurvey && selectedSurvey.id === id) {
         setSelectedSurvey(prev => ({ ...prev, status }));
       }
-      showToast(`تم تعديل قرار اللجنة إلى: ${status}`);
+      showToast(`تم تعديل قرار اللجنة إلى: ${status}`); // Backticks fixed!
     } catch (e) {
       showToast("فشل تحديث الحالة.");
     }
@@ -594,8 +608,24 @@ export default function App() {
     return matchesSearch && matchesSeverity;
   });
 
+  const handleSyncDrafts = async () => {
+    if (!db || drafts.length === 0) return;
+    try {
+      const surveysColRef = collection(db, 'artifacts', appId, 'public', 'data', 'surveys');
+      for (const d of drafts) {
+        const { id, ...p } = d;
+        p.status = "بانتظار الاعتماد";
+        await addDoc(surveysColRef, p);
+      }
+      setDrafts([]);
+      showToast("تمت مزامنة جميع المسودات أونلاين!");
+    } catch (error) {
+      showToast("فشلت المزامنة السحابية.");
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-slate-50 font-sans text-slate-800 flex flex-col antialiased">
+    <div dir="rtl" className="min-h-screen bg-slate-50 font-sans text-slate-800 flex flex-col antialiased">
       
       {/* البوابة الأساسية ورأس الصفحة */}
       <header className="bg-emerald-950 text-white shadow-md sticky top-0 z-40">
@@ -613,7 +643,7 @@ export default function App() {
               onClick={() => { setIsOnline(!isOnline); showToast(isOnline ? "وضع عدم الاتصال" : "وضع الاتصال السحابي"); }}
               className={`px-3 py-1.5 rounded-full font-bold flex items-center transition-colors ${isOnline ? "bg-emerald-900 border border-emerald-500 text-emerald-200" : "bg-red-900 border border-red-500 text-red-100"}`}
             >
-              <span className={`w-2 h-2 rounded-full ml-2 ${isOnline ? "bg-emerald-400 animate-pulse" : "bg-red-500"}`}></span>
+              <span className={`w-2.5 h-2.5 rounded-full ml-2 ${isOnline ? "bg-emerald-400 animate-pulse" : "bg-red-500"}`}></span>
               {isOnline ? "أونلاين" : "أوفلاين محلي"}
             </button>
 
@@ -651,11 +681,11 @@ export default function App() {
             <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-1">
                 <label className="text-xs font-bold text-slate-600 block">اسم المستخدم</label>
-                <input type="text" className="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm outline-none" value={loginForm.username} onChange={(e) => setLoginForm({ ...loginForm, username: e.target.value })} required />
+                <input type="text" className="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 text-slate-900 rounded-xl text-sm outline-none" value={loginForm.username} onChange={(e) => setLoginForm({ ...loginForm, username: e.target.value })} required />
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-bold text-slate-600 block">كلمة المرور</label>
-                <input type="password" className="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm outline-none" value={loginForm.password} onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })} required />
+                <input type="password" className="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 text-slate-900 rounded-xl text-sm outline-none" value={loginForm.password} onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })} required />
               </div>
               <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl font-bold text-sm shadow-md transition">دخول آمن للمنظومة</button>
             </form>
@@ -675,13 +705,16 @@ export default function App() {
               {(currentUser.role === "Admin" || currentUser.role === "Field_Engineer") && (
                 <button onClick={() => setCurrentTab("field-new")} className={`w-full text-right px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${currentTab === "field-new" ? "bg-emerald-50 text-emerald-800" : "text-slate-600 hover:bg-slate-50"}`}>استمارة مسح ميداني جديدة</button>
               )}
+              {(currentUser.role === "Admin" || currentUser.role === "Field_Engineer") && (
+                <button onClick={() => setCurrentTab("field-drafts")} className={`w-full text-right px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${currentTab === "field-drafts" ? "bg-emerald-50 text-emerald-800" : "text-slate-600 hover:bg-slate-50"}`}>المسودات الميدانية محلياً ({drafts.length})</button>
+              )}
             </aside>
 
             <section className="lg:col-span-9 bg-white rounded-3xl shadow-sm border p-6 flex flex-col min-h-[550px]">
               
               {/* تبويب الاستمارة الميدانية */}
               {currentTab === "field-new" && (
-                <div className="space-y-6">
+                <div className="space-y-6 text-slate-800">
                   <div className="bg-emerald-50 border-r-4 border-emerald-600 p-4 rounded-xl flex justify-between items-center">
                     <div>
                       <h2 className="text-sm font-bold text-emerald-950">تقييم الأضرار الميداني الحصري (خطوة {wizardStep} من 6)</h2>
@@ -694,31 +727,31 @@ export default function App() {
                     <div className="space-y-4">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-1">
-                          <label className="text-xs font-bold block">اسم صاحب العقار بالكامل</label>
-                          <input type="text" className="w-full p-2.5 bg-slate-50 border rounded-xl text-sm" value={formData.ownerName} onChange={(e) => setFormData({ ...formData, ownerName: e.target.value })} />
+                          <label className="text-xs font-bold block text-slate-700">اسم صاحب العقار بالكامل</label>
+                          <input type="text" className="w-full p-2.5 bg-slate-50 border text-slate-900 rounded-xl text-sm" value={formData.ownerName} onChange={(e) => setFormData({ ...formData, ownerName: e.target.value })} />
                         </div>
                         <div className="space-y-1">
-                          <label className="text-xs font-bold block">رقم هاتف للتواصل</label>
-                          <input type="tel" className="w-full p-2.5 bg-slate-50 border rounded-xl text-sm text-left" value={formData.ownerPhone} onChange={(e) => setFormData({ ...formData, ownerPhone: e.target.value })} />
+                          <label className="text-xs font-bold block text-slate-700">رقم هاتف للتواصل</label>
+                          <input type="tel" className="w-full p-2.5 bg-slate-50 border text-slate-900 rounded-xl text-sm text-left" value={formData.ownerPhone} onChange={(e) => setFormData({ ...formData, ownerPhone: e.target.value })} />
                         </div>
                         <div className="space-y-1">
-                          <label className="text-xs font-bold block">رقم السجل / قيد العائلة اللبناني</label>
-                          <input type="text" className="w-full p-2.5 bg-slate-50 border rounded-xl text-sm text-left" value={formData.ownerId} onChange={(e) => setFormData({ ...formData, ownerId: e.target.value })} />
+                          <label className="text-xs font-bold block text-slate-700">رقم السجل / قيد العائلة اللبناني</label>
+                          <input type="text" className="w-full p-2.5 bg-slate-50 border text-slate-900 rounded-xl text-sm text-left" value={formData.ownerId} onChange={(e) => setFormData({ ...formData, ownerId: e.target.value })} />
                         </div>
                         <div className="space-y-1">
-                          <label className="text-xs font-bold block">نوع العقار</label>
-                          <select className="w-full p-2.5 bg-slate-50 border rounded-xl text-sm bg-white" value={formData.propertyType} onChange={(e) => setFormData({ ...formData, propertyType: e.target.value })}>
+                          <label className="text-xs font-bold block text-slate-700">نوع العقار</label>
+                          <select className="w-full p-2.5 bg-slate-50 border text-slate-900 rounded-xl text-sm bg-white" value={formData.propertyType} onChange={(e) => setFormData({ ...formData, propertyType: e.target.value })}>
                             <option>منزل مستقل</option><option>شقة سكنية</option><option>مبنى تجاري</option><option>مؤسسة عامة</option>
                           </select>
                         </div>
                       </div>
                       
                       <div className="bg-slate-50 p-4 rounded-xl border space-y-3">
-                        <h4 className="text-xs font-bold">التوقيع الجغرافي الآلي ورابط جوجل مابس</h4>
+                        <h4 className="text-xs font-bold text-slate-700">التوقيع الجغرافي الآلي ورابط جوجل مابس</h4>
                         <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-500">
                           <div>خط العرض: {formData.gps.lat}</div><div>خط الطول: {formData.gps.lng}</div>
                         </div>
-                        <input type="url" placeholder="الصق رابط موقع جوجل مابس المنسوخ هنا" className="w-full p-2 bg-white border rounded-xl text-xs text-left font-mono" value={formData.locationUrl} onChange={(e) => setFormData({ ...formData, locationUrl: e.target.value })} />
+                        <input type="url" placeholder="الصق رابط موقع جوجل مابس المنسوخ هنا" className="w-full p-2.5 bg-white border text-slate-900 rounded-xl text-xs text-left font-mono" value={formData.locationUrl} onChange={(e) => setFormData({ ...formData, locationUrl: e.target.value })} />
                       </div>
                     </div>
                   )}
@@ -728,28 +761,28 @@ export default function App() {
                     <div className="space-y-6">
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>
-                          <label className="text-xs font-bold block">أ. الأعمدة والجدران الحاملة</label>
-                          <select className="w-full p-2 bg-slate-50 border rounded-xl text-xs bg-white mt-1" value={formData.structural_columns} onChange={(e)=>setFormData({...formData, structural_columns:e.target.value})}>
+                          <label className="text-xs font-bold block text-slate-700">أ. الأعمدة والجدران الحاملة</label>
+                          <select className="w-full p-2 bg-slate-50 border text-slate-900 rounded-xl text-xs bg-white mt-1" value={formData.structural_columns} onChange={(e)=>setFormData({...formData, structural_columns:e.target.value})}>
                             <option>سليم</option><option>تشققات شعرية سطحيّة</option><option>تصدعات عميقة</option><option>انقشاع الخرسانة (Spalling)</option><option>انبعاج حديد التسليح (Buckling)</option><option>فشل كلي/انهيار</option>
                           </select>
                         </div>
                         <div>
-                          <label className="text-xs font-bold block">ب. الجسور والأسقف</label>
-                          <select className="w-full p-2 bg-slate-50 border rounded-xl text-xs bg-white mt-1" value={formData.structural_beams} onChange={(e)=>setFormData({...formData, structural_beams:e.target.value})}>
+                          <label className="text-xs font-bold block text-slate-700">ب. الجسور والأسقف</label>
+                          <select className="w-full p-2 bg-slate-50 border text-slate-900 rounded-xl text-xs bg-white mt-1" value={formData.structural_beams} onChange={(e)=>setFormData({...formData, structural_beams:e.target.value})}>
                             <option>سليم</option><option>تشققات عرضية/طولية</option><option>ترخيم ملحوظ (Deflection)</option><option>انفصال الغطاء الخرساني</option><option>انهيار جزئي/كلي</option>
                           </select>
                         </div>
                         <div>
-                          <label className="text-xs font-bold block">ج. الأساسات</label>
-                          <select className="w-full p-2 bg-slate-50 border rounded-xl text-xs bg-white mt-1" value={formData.structural_foundations} onChange={(e)=>setFormData({...formData, structural_foundations:e.target.value})}>
+                          <label className="text-xs font-bold block text-slate-700">ج. الأساسات</label>
+                          <select className="w-full p-2 bg-slate-50 border text-slate-900 rounded-xl text-xs bg-white mt-1" value={formData.structural_foundations} onChange={(e)=>setFormData({...formData, structural_foundations:e.target.value})}>
                             <option>سليم</option><option>تصدع في الأساسات</option><option>هبوط تفاضلي (Settlement)</option>
                           </select>
                         </div>
                       </div>
 
                       {/* حصر وتفصيل الغرف المدمرة ديناميكياً */}
-                      <div className="bg-red-50/60 p-4 rounded-xl border border-red-200 space-y-4">
-                        <h4 className="text-xs font-bold text-red-800">حصر وتفصيل الغرف المدمرة بالكامل داخل العقار (ديناميكي)</h4>
+                      <div className="bg-red-50 p-4 rounded-xl border border-red-200 space-y-4">
+                        <h4 className="text-xs font-bold text-red-800">🏚️ حصر وتفصيل الغرف المدمرة بالكامل داخل العقار (ديناميكي)</h4>
                         
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
@@ -757,7 +790,7 @@ export default function App() {
                             <input 
                               type="number" 
                               min="0"
-                              className="w-32 p-2 bg-white border rounded-xl text-xs mt-1 text-center font-bold"
+                              className="w-32 p-2 bg-white border text-slate-900 rounded-xl text-xs mt-1 text-center font-bold"
                               value={formData.structural_destroyed_rooms_count}
                               onChange={(e) => handleDestroyedRoomsCountChange(e.target.value)}
                             />
@@ -769,14 +802,14 @@ export default function App() {
                             {formData.structural_destroyed_rooms_list.map((room, index) => (
                               <div key={index} className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-white p-3 rounded-lg border border-red-100 text-xs">
                                 <div>
-                                  <label className="block font-bold">صنف الغرفة {index + 1}</label>
-                                  <select className="w-full p-2 bg-slate-50 border rounded-lg mt-1" value={room.type} onChange={(e)=>handleRoomDetailChange(index, 'type', e.target.value)}>
+                                  <label className="block font-bold text-slate-700">صنف الغرفة {index + 1}</label>
+                                  <select className="w-full p-2 bg-slate-50 border text-slate-900 rounded-lg mt-1" value={room.type} onChange={(e)=>handleRoomDetailChange(index, 'type', e.target.value)}>
                                     {ROOM_TYPES.map((t, idx) => <option key={idx}>{t}</option>)}
                                   </select>
                                 </div>
                                 <div>
-                                  <label className="block font-bold">نوع ودرجة الخراب</label>
-                                  <select className="w-full p-2 bg-slate-50 border rounded-lg mt-1" value={room.damage} onChange={(e)=>handleRoomDetailChange(index, 'damage', e.target.value)}>
+                                  <label className="block font-bold text-slate-700">نوع ودرجة الخراب</label>
+                                  <select className="w-full p-2 bg-slate-50 border text-slate-900 rounded-lg mt-1" value={room.damage} onChange={(e)=>handleRoomDetailChange(index, 'damage', e.target.value)}>
                                     {ROOM_DAMAGE_OPTIONS.filter(opt => opt !== "سليم - لا توجد غرف مدمرة").map((opt, idx) => <option key={idx}>{opt}</option>)}
                                   </select>
                                 </div>
@@ -792,8 +825,8 @@ export default function App() {
                   {wizardStep === 3 && (
                     <div className="space-y-4">
                       <div>
-                        <label className="text-xs font-bold block">جدران وقواطع الطوب (غير الحاملة)</label>
-                        <select className="w-full p-2 bg-slate-50 border rounded-xl text-xs bg-white mt-1" value={formData.nonStructural_walls} onChange={(e)=>setFormData({...formData, nonStructural_walls:e.target.value})}>
+                        <label className="text-xs font-bold block text-slate-700">جدران وقواطع الطوب (غير الحاملة)</label>
+                        <select className="w-full p-2 bg-slate-50 border text-slate-900 rounded-xl text-xs bg-white mt-1" value={formData.nonStructural_walls} onChange={(e)=>setFormData({...formData, nonStructural_walls:e.target.value})}>
                           <option>سليم</option><option>تشققات عند الفواصل</option><option>تشققات مائلة (X-Cracks)</option><option>انهيار جزئي</option><option>انهيار كامل للجدار</option>
                         </select>
                       </div>
@@ -802,12 +835,12 @@ export default function App() {
                         <h4 className="text-xs font-bold text-slate-700">جرد وتفصيل الشبابيك والنوافذ</h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
                           {[{k:"nonStructural_windows_alu_small", l:"ألمنيوم صغير"}, {k:"nonStructural_windows_alu_large", l:"ألمنيوم كبير"}, {k:"nonStructural_windows_steel", l:"حديد وحماية"}, {k:"nonStructural_windows_facade", l:"واجهات زجاجية"}].map(item => (
-                            <div key={item.k} className="flex justify-between items-center p-2 bg-white rounded-lg border">
-                              <span>{item.l}</span>
+                            <div key={item.k} className="flex justify-between items-center p-2.5 bg-white rounded-lg border">
+                              <span className="text-slate-700">{item.l}</span>
                               <div className="flex items-center space-x-2 space-x-reverse">
-                                <button type="button" onClick={()=>setFormData(p=>({...p, [item.k]:Math.max(0, p[item.k]-1)}))} className="w-6 h-6 bg-slate-100 rounded">-</button>
-                                <span className="font-bold w-6 text-center">{formData[item.k]}</span>
-                                <button type="button" onClick={()=>setFormData(p=>({...p, [item.k]:p[item.k]+1}))} className="w-6 h-6 bg-slate-100 rounded">+</button>
+                                <button type="button" onClick={()=>setFormData(p=>({...p, [item.k]:Math.max(0, p[item.k]-1)}))} className="w-8 h-8 bg-slate-100 text-slate-900 rounded font-black text-xs">-</button>
+                                <span className="font-bold w-6 text-center text-slate-900">{formData[item.k]}</span>
+                                <button type="button" onClick={()=>setFormData(p=>({...p, [item.k]:p[item.k]+1}))} className="w-8 h-8 bg-slate-100 text-slate-900 rounded font-black text-xs">+</button>
                               </div>
                             </div>
                           ))}
@@ -818,12 +851,12 @@ export default function App() {
                         <h4 className="text-xs font-bold text-slate-700">جرد وتفصيل الأبواب</h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
                           {[{k:"nonStructural_doors_wood", l:"أبواب خشبية داخلية"}, {k:"nonStructural_doors_iron", l:"أبواب حديد خارجية"}].map(item => (
-                            <div key={item.k} className="flex justify-between items-center p-2 bg-white rounded-lg border">
-                              <span>{item.l}</span>
+                            <div key={item.k} className="flex justify-between items-center p-2.5 bg-white rounded-lg border">
+                              <span className="text-slate-700">{item.l}</span>
                               <div className="flex items-center space-x-2 space-x-reverse">
-                                <button type="button" onClick={()=>setFormData(p=>({...p, [item.k]:Math.max(0, p[item.k]-1)}))} className="w-6 h-6 bg-slate-100 rounded">-</button>
-                                <span className="font-bold w-6 text-center">{formData[item.k]}</span>
-                                <button type="button" onClick={()=>setFormData(p=>({...p, [item.k]:p[item.k]+1}))} className="w-6 h-6 bg-slate-100 rounded">+</button>
+                                <button type="button" onClick={()=>setFormData(p=>({...p, [item.k]:Math.max(0, p[item.k]-1)}))} className="w-8 h-8 bg-slate-100 text-slate-900 rounded font-black text-xs">-</button>
+                                <span className="font-bold w-6 text-center text-slate-900">{formData[item.k]}</span>
+                                <button type="button" onClick={()=>setFormData(p=>({...p, [item.k]:p[item.k]+1}))} className="w-8 h-8 bg-slate-100 text-slate-900 rounded font-black text-xs">+</button>
                               </div>
                             </div>
                           ))}
@@ -834,38 +867,38 @@ export default function App() {
 
                   {/* الخطوة 4: الحمامات والملاحق والأسوار */}
                   {wizardStep === 4 && (
-                    <div className="space-y-6">
+                    <div className="space-y-6 text-slate-800">
                       <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-200">
-                        <h4 className="text-xs font-bold text-emerald-800">بند مستقل: تقييم أضرار وتعداد الحمامات</h4>
+                        <h4 className="text-xs font-bold text-emerald-800">🚿 بند مستقل: تقييم أضرار وتعداد الحمامات والشبكة الصحية</h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
                           <div className="flex justify-between items-center bg-white p-2.5 rounded-xl border text-xs">
-                            <span>تعداد الحمامات المتضررة:</span>
+                            <span className="text-slate-700">تعداد الحمامات المتضررة:</span>
                             <div className="flex items-center space-x-2 space-x-reverse">
-                              <button type="button" onClick={()=>setFormData(p=>({...p, bathroom_count:Math.max(0, p.bathroom_count-1)}))} className="w-6 h-6 bg-slate-100 rounded">-</button>
-                              <span className="font-bold w-6 text-center">{formData.bathroom_count}</span>
-                              <button type="button" onClick={()=>setFormData(p=>({...p, bathroom_count:p.bathroom_count+1}))} className="w-6 h-6 bg-slate-100 rounded">+</button>
+                              <button type="button" onClick={()=>setFormData(p=>({...p, bathroom_count:Math.max(0, p.bathroom_count-1)}))} className="w-8 h-8 bg-slate-100 text-slate-900 rounded">-</button>
+                              <span className="font-bold w-6 text-center text-slate-900">{formData.bathroom_count}</span>
+                              <button type="button" onClick={()=>setFormData(p=>({...p, bathroom_count:p.bathroom_count+1}))} className="w-8 h-8 bg-slate-100 text-slate-900 rounded">+</button>
                             </div>
                           </div>
-                          <select className="w-full p-2.5 bg-white border rounded-xl text-xs" value={formData.bathroom_status} onChange={(e)=>setFormData({...formData, bathroom_status:e.target.value})}>
+                          <select className="w-full p-2.5 bg-white border text-slate-900 rounded-xl text-xs outline-none" value={formData.bathroom_status} onChange={(e)=>setFormData({...formData, bathroom_status:e.target.value})}>
                             <option>سليم</option><option>تضرر سطحي (سيراميك/إكسسوارات)</option><option>تدمير جزئي (أطقم صحية/مغاسل)</option><option>تدمير كلي وتفجر التمديدات الصحية</option>
                           </select>
                         </div>
                       </div>
 
-                      <div className="bg-slate-50 p-4 rounded-xl border space-y-3">
-                        <h4 className="text-xs font-bold text-slate-700">جرد وتفصيل الملاحق الخارجية (مساحة + خراب)</h4>
+                      <div className="bg-slate-50 p-4 rounded-xl border space-y-3 font-sans">
+                        <h4 className="text-xs font-bold text-slate-700">🏡 جرد وتفصيل الملاحق الخارجية (المساحة + الخراب)</h4>
                         {ANNEX_TYPES.map(item => {
                           const isSel = formData[`external_annex_${item.id}_selected`];
                           return (
                             <div key={item.id} className="p-3 bg-white rounded-lg border">
-                              <label className="flex items-center text-xs font-bold cursor-pointer">
-                                <input type="checkbox" className="ml-2 rounded" checked={isSel} onChange={(e)=>setFormData({...formData, [`external_annex_${item.id}_selected`]:e.target.checked})} />
+                              <label className="flex items-center text-xs font-bold text-slate-800 cursor-pointer">
+                                <input type="checkbox" className="ml-2 rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4" checked={isSel} onChange={(e)=>setFormData({...formData, [`external_annex_${item.id}_selected`]:e.target.checked})} />
                                 <span>{item.icon} {item.label}</span>
                               </label>
                               {isSel && (
-                                <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t text-[10px]">
-                                  <input type="number" placeholder="المساحة م²" className="p-1.5 border rounded-lg" value={formData[`external_annex_${item.id}_area`]||""} onChange={(e)=>setFormData({...formData, [`external_annex_${item.id}_area`]:parseInt(e.target.value)||0})} />
-                                  <select className="p-1.5 border rounded-lg bg-white" value={formData[`external_annex_${item.id}_damage`]} onChange={(e)=>setFormData({...formData, [`external_annex_${item.id}_damage`]:e.target.value})}>
+                                <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t text-[10px] text-slate-900">
+                                  <input type="number" placeholder="المساحة م²" className="p-1.5 border text-slate-900 rounded-lg outline-none focus:border-emerald-600 bg-slate-50 font-bold" value={formData[`external_annex_${item.id}_area`]||""} onChange={(e)=>setFormData({...formData, [`external_annex_${item.id}_area`]:parseInt(e.target.value)||0})} />
+                                  <select className="p-1.5 border text-slate-900 rounded-lg bg-slate-50 font-bold outline-none" value={formData[`external_annex_${item.id}_damage`]} onChange={(e)=>setFormData({...formData, [`external_annex_${item.id}_damage`]:e.target.value})}>
                                     <option>سليم</option><option>تصدع عميق</option><option>انهيار جزئي</option><option>انهيار كلي</option>
                                   </select>
                                 </div>
@@ -876,8 +909,8 @@ export default function App() {
                       </div>
 
                       <div>
-                        <label className="text-xs font-bold block">الأسوار الخارجية للمنزل</label>
-                        <select className="w-full p-2.5 bg-slate-50 border rounded-xl text-xs bg-white mt-1" value={formData.external_fences} onChange={(e)=>setFormData({...formData, external_fences:e.target.value})}>
+                        <label className="text-xs font-bold block text-slate-700">الأسوار الخارجية للمنزل والحديقة</label>
+                        <select className="w-full p-2.5 bg-slate-50 border text-slate-900 rounded-xl text-xs bg-white mt-1" value={formData.external_fences} onChange={(e)=>setFormData({...formData, external_fences:e.target.value})}>
                           <option>سليمة</option><option>أضرار سطحية وشظايا</option><option>تصدع وشروخ خطيرة</option><option>انهيار جزئي</option><option>انهيار كلي</option>
                         </select>
                       </div>
@@ -886,41 +919,41 @@ export default function App() {
 
                   {/* الخطوة 5: الأثاث والأجهزة بالتعداد ونوع الخراب */}
                   {wizardStep === 5 && (
-                    <div className="space-y-6">
+                    <div className="space-y-6 text-slate-800">
                       <div className="bg-slate-50 p-4 rounded-xl border space-y-4">
-                        <h4 className="text-xs font-bold text-slate-700">جرد وتفصيل الأثاث والمحتويات (العدد ونوع الخراب)</h4>
+                        <h4 className="text-xs font-bold text-slate-700">🛋️ جرد وتفصيل الأثاث والمحتويات (العدد ونوع الخراب للتعويض)</h4>
                         {[
                           {k: "bedroom", l: "غرف نوم كاملة"},
                           {k: "beds", l: "أسرة منفردة"},
-                          {k: "wardrobes", l: "خزائن ملابس"},
-                          {k: "sofa", l: "صالونات وكنب"},
+                          {k: "wardrobes", l: "خزائن ملابس مستقلة"},
+                          {k: "sofa", l: "صالونات وأطقم كنب"},
                           {k: "dining", l: "طاولات سفرة"},
                           {k: "carpet", l: "سجاد وموكيت"}
                         ].map(item => (
-                          <div key={item.k} className="bg-white p-3 rounded-lg border flex flex-col sm:flex-row justify-between gap-3 text-xs">
-                            <span className="font-bold sm:w-1/3">{item.l}</span>
+                          <div key={item.k} className="bg-white p-3 rounded-lg border flex flex-col md:flex-row justify-between gap-3 text-xs items-center">
+                            <span className="font-bold md:w-1/3 text-slate-800">{item.l}</span>
                             <div className="flex items-center space-x-2 space-x-reverse">
-                              <button type="button" onClick={()=>setFormData(p=>({...p, [`furniture_${item.k}_count`]:Math.max(0, p[`furniture_${item.k}_count`]-1)}))} className="w-6 h-6 bg-slate-100 rounded">-</button>
-                              <span className="font-bold w-6 text-center">{formData[`furniture_${item.k}_count`]}</span>
-                              <button type="button" onClick={()=>setFormData(p=>({...p, [`furniture_${item.k}_count`]:p[`furniture_${item.k}_count`]+1}))} className="w-6 h-6 bg-slate-100 rounded">+</button>
+                              <button type="button" onClick={()=>setFormData(p=>({...p, [`furniture_${item.k}_count`]:Math.max(0, p[`furniture_${item.k}_count`]-1)}))} className="w-8 h-8 bg-slate-100 text-slate-900 rounded font-black">-</button>
+                              <span className="font-bold w-6 text-center text-slate-950">{formData[`furniture_${item.k}_count`]}</span>
+                              <button type="button" onClick={()=>setFormData(p=>({...p, [`furniture_${item.k}_count`]:p[`furniture_${item.k}_count`]+1}))} className="w-8 h-8 bg-slate-100 text-slate-900 rounded font-black">+</button>
                             </div>
-                            <select className="p-1 border rounded-lg bg-slate-50 text-[10px]" value={formData[`furniture_${item.k}_damage`]} onChange={(e)=>setFormData({...formData, [`furniture_${item.k}_damage`]:e.target.value})}>
-                              {DAMAGE_TYPES.map((dmg, i) => <option key={i}>{dmg}</option>)}
+                            <select className="p-1.5 border text-slate-900 rounded-lg bg-slate-50 text-[10px] outline-none" value={formData[`furniture_${item.k}_damage`]} onChange={(e)=>setFormData({...formData, [`furniture_${item.key}_damage`]:e.target.value})}>
+                              {DAMAGE_TYPES.map((dmg, i) => <option key={i} value={dmg}>{dmg}</option>)}
                             </select>
                           </div>
                         ))}
                       </div>
 
-                      <div className="bg-slate-50 p-4 rounded-xl border space-y-4">
-                        <h4 className="text-xs font-bold text-slate-700">جرد الأجهزة الكهربائية (تعداد تالف)</h4>
+                      <div className="bg-slate-50 p-4 rounded-xl border space-y-4 font-sans">
+                        <h4 className="text-xs font-bold text-slate-700">🏢 جرد الأجهزة الكهربائية (تعداد تالف)</h4>
                         <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-xs">
-                          {[{k:"fridge", l:"براد"}, {k:"tv", l:"شاشة"}, {k:"cooker", l:"فرن غاز"}, {k:"heater", l:"مدفأة"}, {k:"ac", l:"مكيف"}, {k:"washing", l:"غسالة"}].map(item => (
+                          {[{k:"fridge", l:"براد / ثلاجة"}, {k:"tv", l:"شاشة تلفزيون"}, {k:"cooker", l:"فرن طهي / غاز"}, {k:"heater", l:"مدفأة / صوبة"}, {k:"ac", l:"مكيف هواء"}, {k:"washing", l:"غسالة ملابس"}].map(item => (
                             <div key={item.k} className="bg-white p-2.5 rounded-lg border flex justify-between items-center">
-                              <span>{item.l}</span>
+                              <span className="text-slate-700">{item.l}</span>
                               <div className="flex items-center space-x-1.5 space-x-reverse">
-                                <button type="button" onClick={()=>setFormData(p=>({...p, [`appliances_${item.k}`]:Math.max(0, p[`appliances_${item.k}`]-1)}))} className="w-5 h-5 bg-slate-100 rounded">-</button>
-                                <span className="font-bold w-4 text-center text-[10px]">{formData[`appliances_${item.k}`]}</span>
-                                <button type="button" onClick={()=>setFormData(p=>({...p, [`appliances_${item.k}`]:p[`appliances_${item.k}`]+1}))} className="w-5 h-5 bg-slate-100 rounded">+</button>
+                                <button type="button" onClick={()=>setFormData(p=>({...p, [`appliances_${item.k}`]:Math.max(0, p[`appliances_${item.k}`]-1)}))} className="w-6 h-6 bg-slate-100 text-slate-900 rounded font-black text-xs">-</button>
+                                <span className="font-bold w-4 text-center text-[10px] text-slate-900">{formData[`appliances_${item.k}`]}</span>
+                                <button type="button" onClick={()=>setFormData(p=>({...p, [`appliances_${item.k}`]:p[`appliances_${item.k}`]+1}))} className="w-6 h-6 bg-slate-100 text-slate-900 rounded font-black text-xs">+</button>
                               </div>
                             </div>
                           ))}
@@ -933,24 +966,24 @@ export default function App() {
                   {wizardStep === 6 && (
                     <div className="space-y-6">
                       <div className="bg-slate-50 p-4 rounded-xl border space-y-3">
-                        <h4 className="text-xs font-bold">التوثيق المصور المباشر (كاميرا الهاتف)</h4>
+                        <h4 className="text-xs font-bold text-slate-700">📷 التوثيق المصور المباشر (كاميرا الهاتف)</h4>
                         <input type="file" accept="image/*" capture="environment" className="hidden" ref={fileInputRef} onChange={handlePhotoUpload} />
-                        <button type="button" onClick={handleCapturePhoto} className="bg-emerald-950 text-white px-4 py-2 rounded-xl text-xs font-bold">📷 تشغيل الكاميرا والتقاط صورة</button>
+                        <button type="button" onClick={handleCapturePhoto} className="bg-emerald-950 text-white px-4 py-2.5 rounded-xl text-xs font-bold">📷 تشغيل الكاميرا والتقاط صورة</button>
                         
                         {formData.photos.length > 0 && (
                           <div className="grid grid-cols-2 gap-2 mt-2">
-                            {formData.photos.map((p, idx) => <img key={idx} src={p} className="rounded-lg aspect-video object-cover border" />)}
+                            {formData.photos.map((p, idx) => <img key={idx} src={p} className="rounded-lg aspect-video object-cover border" alt="captured site" />)}
                           </div>
                         )}
                       </div>
 
-                      <div className="bg-slate-50 p-4 rounded-xl border space-y-3">
-                        <h4 className="text-xs font-bold">الملاحظات وتسجيل الصوت المباشر</h4>
-                        <textarea className="w-full p-2.5 bg-white border rounded-xl text-xs h-20 outline-none" placeholder="ملاحظات وتوصيات اللجنة البلدية..." value={formData.notes} onChange={(e)=>setFormData({...formData, notes:e.target.value})} />
+                      <div className="bg-slate-50 p-4 rounded-xl border space-y-3 text-slate-800">
+                        <h4 className="text-xs font-bold text-slate-700">🎙️ الملاحظات الفنية والافادات الصوتية الفورية</h4>
+                        <textarea className="w-full p-2.5 bg-white border text-slate-900 rounded-xl text-xs h-20 outline-none focus:border-emerald-600" placeholder="ملاحظات وتوصيات اللجنة الفنية لبلدية عين إبل..." value={formData.notes} onChange={(e)=>setFormData({...formData, notes:e.target.value})} />
                         
                         <div className="pt-2 border-t flex items-center gap-2">
                           {!formData.audioNote ? (
-                            <button type="button" onClick={isRecording ? stopRecording : startRecording} className={`px-3 py-1.5 rounded-xl text-xs font-bold ${isRecording ? "bg-red-100 text-red-700 animate-pulse border border-red-300" : "bg-emerald-100 text-emerald-700"}`}>
+                            <button type="button" onClick={isRecording ? stopRecording : startRecording} className={`px-3 py-1.5 rounded-xl text-xs font-bold ${isRecording ? "bg-red-100 text-red-700 animate-pulse border border-red-300" : "bg-emerald-100 text-emerald-700 border border-emerald-200"}`}>
                               {isRecording ? "جاري التسجيل... اضغط لحفظ الصوت" : "🎙️ تسجيل ملاحظة صوتية مباشرة للمالك"}
                             </button>
                           ) : (
@@ -964,7 +997,7 @@ export default function App() {
                       </div>
 
                       <div className="space-y-2">
-                        <div className="flex justify-between items-center"><label className="text-xs font-bold text-slate-700 block">توقيع المهندس الفاحص رقمياً</label><button type="button" onClick={clearCanvas} className="text-[10px] text-red-600 font-bold">إعادة</button></div>
+                        <div className="flex justify-between items-center"><label className="text-xs font-bold text-slate-700 block">✍️ توقيع المهندس الفاحص رقمياً</label><button type="button" onClick={clearCanvas} className="text-[10px] text-red-600 font-bold">إعادة</button></div>
                         <canvas ref={canvasRef} width={400} height={150} className="w-full bg-slate-50 border rounded-xl h-32 touch-none" onMouseDown={startDrawing} onMouseMove={draw} onMouseUp={stopDrawing} onMouseLeave={stopDrawing} onTouchStart={startDrawing} onTouchMove={draw} onTouchEnd={stopDrawing} />
                       </div>
                     </div>
@@ -987,7 +1020,7 @@ export default function App() {
               {currentTab === "field-drafts" && (
                 <div className="space-y-4">
                   <div className="flex justify-between items-center border-b pb-3">
-                    <h2 className="text-sm font-bold">المسودات الميدانية المسجلة محلياً (أوفلاين)</h2>
+                    <h2 className="text-sm font-bold text-slate-800">المسودات الميدانية المسجلة محلياً (أوفلاين)</h2>
                     {drafts.length > 0 && <button onClick={handleSyncDrafts} disabled={!isOnline} className="bg-amber-500 text-slate-900 px-3 py-1.5 rounded-xl text-xs font-bold">مزامنة أونلاين</button>}
                   </div>
                   {drafts.length === 0 ? (
@@ -996,7 +1029,7 @@ export default function App() {
                     <div className="space-y-2">
                       {drafts.map((d, i) => (
                         <div key={i} className="p-3 border rounded-xl bg-slate-50 flex justify-between items-center text-xs">
-                          <div><span className="text-[10px] font-mono text-slate-400">{d.timestamp}</span><h4 className="font-bold">{d.ownerName}</h4></div>
+                          <div><span className="text-[10px] font-mono text-slate-400">{d.timestamp}</span><h4 className="font-bold text-slate-800">{d.ownerName}</h4></div>
                           <span className="bg-amber-100 text-amber-800 px-2.5 py-1 rounded font-bold text-[10px]">مسودة معلقة</span>
                         </div>
                       ))}
@@ -1018,9 +1051,9 @@ export default function App() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+                  <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start text-slate-800">
                     <div className="xl:col-span-5 space-y-4">
-                      <input type="text" placeholder="ابحث باسم المالك أو رقم المعاينة..." className="w-full p-2.5 bg-slate-50 border rounded-xl text-xs outline-none focus:ring-1 focus:ring-emerald-500" value={searchTerm} onChange={(e)=>setSearchTerm(e.target.value)} />
+                      <input type="text" placeholder="ابحث باسم المالك أو رقم المعاينة..." className="w-full p-2.5 bg-slate-50 border text-slate-900 rounded-xl text-xs outline-none focus:ring-1 focus:ring-emerald-500" value={searchTerm} onChange={(e)=>setSearchTerm(e.target.value)} />
                       <div className="flex gap-1.5 flex-wrap text-[10px] font-bold">
                         {["الكل", "جسيم / خطر", "متوسط", "خفيف"].map(f => (
                           <button key={f} onClick={()=>setSeverityFilter(f)} className={`px-2.5 py-1.5 rounded-lg transition-colors ${severityFilter === f ? "bg-emerald-950 text-white" : "bg-slate-100 text-slate-500"}`}>{f}</button>
@@ -1031,7 +1064,7 @@ export default function App() {
                         {filteredSurveys.map(s => (
                           <div key={s.id} onClick={()=>setSelectedSurvey(s)} className={`p-3 border rounded-xl cursor-pointer ${selectedSurvey?.id === s.id ? "border-emerald-600 bg-emerald-50/40" : "border-slate-200 hover:bg-slate-50"}`}>
                             <div className="flex justify-between items-center"><span className="font-mono text-[9px] text-slate-400">{s.id.substring(0,8)}</span><span className={`text-[9px] px-2 py-0.5 rounded font-bold ${s.severity === "جسيم / خطر" ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-800"}`}>{s.severity}</span></div>
-                            <h4 className="font-bold mt-1">{s.ownerName}</h4>
+                            <h4 className="font-bold mt-1 text-slate-855">{s.ownerName}</h4>
                             <div className="flex justify-between mt-2 pt-2 border-t text-[10px] text-slate-400"><span>م. {s.engineerName}</span><strong>{s.status}</strong></div>
                           </div>
                         ))}
@@ -1042,7 +1075,7 @@ export default function App() {
                       {selectedSurvey ? (
                         <div className="space-y-4">
                           <div className="flex justify-between items-center bg-white p-3 rounded-xl border text-xs">
-                            <span className="font-bold">حالة الاعتماد: {selectedSurvey.status}</span>
+                            <span className="font-bold text-slate-700">حالة الاعتماد: {selectedSurvey.status}</span>
                             <div className="flex space-x-1.5 space-x-reverse">
                               <button onClick={()=>handleUpdateStatus(selectedSurvey.id, "معتمد")} className="bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1 rounded text-[10px] font-bold">اعتماد</button>
                               <button onClick={()=>handleUpdateStatus(selectedSurvey.id, "مرفوض")} className="bg-red-100 text-red-700 px-2.5 py-1 rounded text-[10px] font-bold">رفض</button>
@@ -1058,14 +1091,14 @@ export default function App() {
                                 <div className="w-10 h-10 bg-emerald-100 text-emerald-950 rounded-xl flex items-center justify-center font-bold text-xs text-center leading-none">بلدية<br/>عين إبل</div>
                                 <div><h3 className="font-extrabold text-sm text-emerald-900">لجنة تقييم وحصر الأضرار</h3><p className="text-[8px] text-slate-400">عين إبل، قضاء بنت جبيل</p></div>
                               </div>
-                              <div className="text-left"><h4 className="font-black text-sm">مستند الكشف الهندسي</h4><p className="font-mono text-[8px] text-slate-400">{selectedSurvey.timestamp}</p></div>
+                              <div className="text-left"><h4 className="font-black text-slate-900 text-sm">مستند الكشف الهندسي</h4><p className="font-mono text-[8px] text-slate-400">{selectedSurvey.timestamp}</p></div>
                             </div>
 
                             <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3 rounded-xl border text-[10px]">
                               <div>المالك: <strong>{selectedSurvey.ownerName}</strong></div><div>الهاتف: <strong>{selectedSurvey.ownerPhone}</strong></div>
                               <div>رقم السجل: <strong>{selectedSurvey.ownerId}</strong></div><div>نوع العقار: <strong>{selectedSurvey.propertyType}</strong></div>
                               <div className="col-span-2 border-t pt-2 flex justify-between items-center">
-                                <span>خط عرض {selectedSurvey.gps.lat}، خط طول {selectedSurvey.gps.lng}</span>
+                                <span>إحداثيات المسح: {selectedSurvey.gps.lat}، {selectedSurvey.gps.lng}</span>
                                 {selectedSurvey.gps.locationUrl && <a href={selectedSurvey.gps.locationUrl} target="_blank" rel="noopener noreferrer" className="text-emerald-700 underline font-bold text-[9px]">📍 فتح الخريطة أونلاين</a>}
                               </div>
                             </div>
@@ -1192,14 +1225,14 @@ export default function App() {
 
                             {selectedSurvey.photos && selectedSurvey.photos.length > 0 && (
                               <div className="grid grid-cols-2 gap-2 mt-3">
-                                {selectedSurvey.photos.map((ph, i) => <img key={i} src={ph} className="rounded border aspect-video object-cover" />)}
+                                {selectedSurvey.photos.map((ph, i) => <img key={i} src={ph} className="rounded border aspect-video object-cover" alt="site documentation" />)}
                               </div>
                             )}
 
                             <div className="grid grid-cols-2 gap-4 border-t border-dashed pt-4 text-center mt-6 items-end">
                               <div>
                                 <span className="text-[9px] block text-slate-400 font-bold">توقيع المهندس الفاحص</span>
-                                <img src={selectedSurvey.signature} className="h-10 mx-auto object-contain bg-slate-50 rounded px-2" />
+                                <img src={selectedSurvey.signature} className="h-10 mx-auto object-contain bg-slate-50 rounded px-2" alt="signature" />
                                 <span className="font-bold text-[10px]">{selectedSurvey.engineerName}</span>
                               </div>
                               <div>
@@ -1216,7 +1249,7 @@ export default function App() {
                           <button onClick={() => window.print()} className="bg-slate-900 text-white font-bold py-2.5 px-4 rounded-xl text-xs shadow-md w-full">🖨️ طباعة أو تصدير كـ PDF</button>
                         </div>
                       ) : (
-                        <p className="text-center py-20 text-slate-400 text-xs">يرجى اختيار استمارة من قائمة اليمين لمراجعتها.</p>
+                        <p className="text-center py-20 text-slate-400 text-xs font-semibold">يرجى اختيار استمارة من قائمة اليمين لمراجعتها.</p>
                       )}
                     </div>
                   </div>
@@ -1224,8 +1257,8 @@ export default function App() {
               )}
 
               {/* إدارة وصلاحيات الحسابات للـ Admin */}
-              {currentUser.role === "Admin" && currentTab === "supervisor-users" && (
-                <div className="p-4 space-y-6 flex-1 flex flex-col">
+              {currentUser?.role === "Admin" && currentTab === "supervisor-users" && (
+                <div className="p-4 space-y-6 flex-1 flex flex-col text-slate-800">
                   <div className="border-b pb-3">
                     <h2 className="text-base font-bold text-slate-900">إدارة حسابات طاقم الفحص والترميم السحابية</h2>
                   </div>
@@ -1235,25 +1268,25 @@ export default function App() {
                       <h3 className="text-xs font-bold text-slate-700">➕ إنشاء حساب موظف جديد</h3>
                       <form onSubmit={handleCreateNewUser} className="space-y-4 text-xs">
                         <div className="space-y-1">
-                          <label className="font-bold">الاسم الكامل للمهندس/المشرف</label>
-                          <input type="text" placeholder="مثال: م. طوني حداد" className="w-full p-2.5 bg-white border rounded-xl" value={newEngineerForm.name} onChange={e=>setNewEngineerForm({...newEngineerForm, name:e.target.value})} required/>
+                          <label className="font-bold text-slate-600 block">الاسم الكامل للمهندس/المشرف</label>
+                          <input type="text" placeholder="مثال: م. طوني حداد" className="w-full p-2.5 bg-white text-slate-900 border rounded-xl outline-none focus:border-emerald-600" value={newEngineerForm.name} onChange={e=>setNewEngineerForm({...newEngineerForm, name:e.target.value})} required/>
                         </div>
                         <div className="space-y-1">
-                          <label className="font-bold">اسم المستخدم (Username)</label>
-                          <input type="text" placeholder="مثال: tony_ebel" className="w-full p-2.5 bg-white border rounded-xl text-left" value={newEngineerForm.username} onChange={e=>setNewEngineerForm({...newEngineerForm, username:e.target.value})} required/>
+                          <label className="font-bold text-slate-600 block">اسم المستخدم (Username)</label>
+                          <input type="text" placeholder="مثال: tony_ebel" className="w-full p-2.5 bg-white text-slate-900 border rounded-xl text-left outline-none focus:border-emerald-600" value={newEngineerForm.username} onChange={e=>setNewEngineerForm({...newEngineerForm, username:e.target.value})} required/>
                         </div>
                         <div className="space-y-1">
-                          <label className="font-bold">كلمة المرور</label>
-                          <input type="text" placeholder="تعيين كلمة السر للموظف" className="w-full p-2.5 bg-white border rounded-xl text-left" value={newEngineerForm.password} onChange={e=>setNewEngineerForm({...newEngineerForm, password:e.target.value})} required/>
+                          <label className="font-bold text-slate-600 block">كلمة المرور</label>
+                          <input type="text" placeholder="تعيين كلمة السر للموظف" className="w-full p-2.5 bg-white text-slate-900 border rounded-xl text-left outline-none focus:border-emerald-600" value={newEngineerForm.password} onChange={e=>setNewEngineerForm({...newEngineerForm, password:e.target.value})} required/>
                         </div>
                         <div className="space-y-1">
-                          <label className="font-bold">رتبة الصلاحية</label>
-                          <select className="w-full p-2.5 bg-white border rounded-xl" value={newEngineerForm.role} onChange={e=>setNewEngineerForm({...newEngineerForm, role:e.target.value})}>
+                          <label className="font-bold text-slate-600 block">رتبة الصلاحية</label>
+                          <select className="w-full p-2.5 bg-white border text-slate-900 rounded-xl outline-none focus:border-emerald-600" value={newEngineerForm.role} onChange={e=>setNewEngineerForm({...newEngineerForm, role:e.target.value})}>
                             <option value="Field_Engineer">مهندس ميداني (للمسح والاستمارات)</option>
                             <option value="Supervisor">مشرف عام بلدية (مراجعة واعتماد التراخيص)</option>
                           </select>
                         </div>
-                        <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl">إنشاء وتنشيط الحساب</button>
+                        <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl transition shadow">إنشاء وتنشيط الحساب</button>
                       </form>
                     </div>
 
@@ -1261,7 +1294,7 @@ export default function App() {
                       <h3 className="text-xs font-bold text-slate-700">👥 قائمة طاقم العمل الحاليين ({usersList.length})</h3>
                       <div className="space-y-2 max-h-[350px] overflow-y-auto pr-1 text-xs">
                         {usersList.map(u => (
-                          <div key={u.id} className="p-3 bg-white border rounded-xl flex justify-between items-center gap-3">
+                          <div key={u.id} className="p-3 bg-white border rounded-xl flex justify-between items-center gap-3 shadow-sm hover:border-slate-300">
                             <div className="space-y-1">
                               <h4 className="font-bold text-slate-900">{u.name}</h4>
                               <div className="flex items-center gap-2 text-[10px] text-slate-400">
@@ -1269,13 +1302,13 @@ export default function App() {
                                 <span>•</span>
                                 <span>
                                   السر: <strong>{showPasswords[u.id] ? u.password : "••••••"}</strong>
-                                  <button onClick={()=>togglePasswordVisibility(u.id)} className="text-emerald-700 hover:underline font-bold mr-1.5">{showPasswords[u.id] ? "إخفاء" : "عرض"}</button>
+                                  <button onClick={()=>togglePasswordVisibility(u.id)} className="text-emerald-750 hover:underline font-bold mr-1.5">{showPasswords[u.id] ? "إخفاء" : "عرض"}</button>
                                 </span>
                               </div>
                             </div>
 
                             <div className="flex items-center space-x-2 space-x-reverse shrink-0">
-                              <span className={`text-[9px] font-black px-2 py-0.5 rounded ${u.role === "Supervisor" ? "bg-purple-100 text-purple-700" : "bg-teal-100 text-teal-700"}`}>{u.role}</span>
+                              <span className={`text-[9px] font-black px-2 py-0.5 rounded ${u.role === "Supervisor" ? "bg-purple-100 text-purple-700" : "bg-teal-100 text-teal-700"}`}>{u.role === "Supervisor" ? "مشرف" : "مهندس"}</span>
                               <button onClick={() => setEditingUser({ id: u.id, name: u.name, username: u.username, newPassword: "" })} className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3 py-1.5 rounded-lg text-[10px] border">تغيير السر</button>
                               <button onClick={() => handleDeleteUser(u.id)} className="bg-red-50 hover:bg-red-100 text-red-600 font-bold px-2.5 py-1.5 rounded-lg text-[10px] border border-red-200">حذف 🗑️</button>
                             </div>
@@ -1284,12 +1317,12 @@ export default function App() {
                       </div>
 
                       {editingUser && (
-                        <form onSubmit={handleUpdatePassword} className="p-4 bg-amber-50 border border-amber-300 rounded-2xl flex flex-col md:flex-row gap-3 items-end animate-fade-in">
+                        <form onSubmit={handleUpdatePassword} className="p-4 bg-amber-50 border border-amber-300 rounded-2xl flex flex-col md:flex-row gap-3 items-end">
                           <div className="flex-1 w-full space-y-1 text-xs">
-                            <div className="flex justify-between font-bold"><span>تغيير كلمة المرور لـ {editingUser.name}</span><button type="button" onClick={()=>setEditingUser(null)} className="text-red-600 hover:underline">إلغاء</button></div>
-                            <input type="text" placeholder="السر الجديد..." className="w-full p-2 bg-white border rounded-xl text-left" value={editingUser.newPassword} onChange={e=>setEditingUser({...editingUser, newPassword:e.target.value})} required/>
+                            <div className="flex justify-between font-bold"><span>تغيير كلمة المرور لـ {editingUser.name}</span><button type="button" onClick={()=>setEditingUser(null)} className="text-red-650 hover:underline font-extrabold text-[11px]">إلغاء</button></div>
+                            <input type="text" placeholder="السر الجديد..." className="w-full p-2 bg-white text-slate-900 border rounded-xl text-left outline-none" value={editingUser.newPassword} onChange={e=>setEditingUser({...editingUser, newPassword:e.target.value})} required/>
                           </div>
-                          <button type="submit" className="bg-amber-600 hover:bg-amber-700 text-white font-bold px-4 py-2 rounded-xl text-xs">تحديث</button>
+                          <button type="submit" className="bg-amber-600 hover:bg-amber-700 text-white font-bold px-4 py-2 rounded-xl text-xs transition">تحديث</button>
                         </form>
                       )}
                     </div>
@@ -1303,7 +1336,7 @@ export default function App() {
         )}
       </main>
 
-      <footer className="bg-slate-950 text-slate-500 py-4 text-center text-xs border-t border-slate-900">
+      <footer className="bg-slate-950 text-slate-500 py-4 text-center text-xs border-t border-slate-900 mt-auto">
         تطبيق سند لإدارة وإعادة إعمار الوحدات المتضررة © 2026 | اللجنة الهندسية لبلدية عين إبل (جنوب لبنان)
       </footer>
 
